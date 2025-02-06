@@ -395,10 +395,12 @@ def _(expr: ArrayTensorProduct):
             elif pending == k:
                 prev = newargs[-1]
                 if prev.shape[0] == 1:
-                    d1 = cumul[prev_i]  # type:ignore
+                    assert prev_i is not None
+                    d1 = cumul[prev_i]
                     prev = _a2m_transpose(prev)
                 else:
-                    d1 = cumul[prev_i] + 1  # type:ignore
+                    assert prev_i is not None
+                    d1 = cumul[prev_i] + 1
                 if arg.shape[1] == 1:
                     d2 = cumul[i] + 1
                     arg = _a2m_transpose(arg)
