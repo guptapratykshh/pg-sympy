@@ -3,12 +3,12 @@ from sympy.external.gmpy import GROUND_TYPES
 from sympy import Integer, Rational, S, sqrt, Matrix, symbols
 from sympy import FF, ZZ, QQ, QQ_I, EXRAW
 
-from sympy.polys.matrices.domainmatrix import DomainMatrix, DomainScalar, DM
+from sympy.polys.matrices.domainmatrix import DomainMatrix, DomainScalar, DM, MatrixRing, MatrixRingoid
 from sympy.polys.matrices.exceptions import (
     DMBadInputError, DMDomainError, DMShapeError, DMFormatError, DMNotAField,
     DMNonSquareMatrixError, DMNonInvertibleMatrixError,
 )
-from sympy.polys.matrices.ddm import DDM
+from sympy.polys.matrices.ddm import DDM, ImmutableDDM
 from sympy.polys.matrices.sdm import SDM
 
 from sympy.testing.pytest import raises
@@ -1360,3 +1360,53 @@ def test_DomainMatrix_pickling():
     assert pickle.loads(pickle.dumps(dM)) == dM
     dM = DomainMatrix([[ZZ(1), ZZ(2)], [ZZ(3), ZZ(4)]], (2, 2), ZZ)
     assert pickle.loads(pickle.dumps(dM)) == dM
+
+
+def test_immutableddm_basics():
+
+    domain = ZZ
+    rows = [[1, 2], [3, 4]]
+    ddm = ImmutableDDM(rows, (2, 2), domain)
+
+    assert ddm.shape == (2, 2)
+    assert ddm.domain == ZZ
+    assert ddm[0][0] == 1
+    assert hash(ddm) == hash((ZZ, (2, 2), ((1, 2), (3, 4))))
+
+def test_matrix_ring():
+
+    MR = MatrixRing(ZZ, 2)
+    zero = MR.zeros()
+    eye = MR.eye()
+    ones = MR.ones()
+
+    assert zero == ImmutableDDM([[0, 0], [0, 0]], (2, 2), ZZ)
+    assert eye == ImmutableDDM([[1, 0], [0, 1]], (2, 2), ZZ)
+    assert ones == ImmutableDDM([[1, 1], [1, 1]], (2, 2), ZZ)
+
+    A = ImmutableDDM([[1, 2], [3, 4]], (2, 2), ZZ)
+    B = ImmutableDDM([[5, 6], [7, 8]], (2, 2), ZZ)
+
+    assert A + B == ImmutableDDM([[6, 8], [10, 12]], (2, 2), ZZ)
+    assert A * B == ImmutableDDM([[19, 22], [43, 50]], (2, 2), ZZ)
+
+    C = ImmutableDDM([[1, 2]], (1, 2), ZZ)
+    raises(ValueError, lambda: A + C)
+
+def test_matrix_ringoid():
+
+    MR = MatrixRingoid(ZZ)
+    A = MR.zeros(2, 3)
+    B = MR.ones(2, 3)
+    C = MR.eye(2)
+
+    assert A == ImmutableDDM([[0, 0, 0], [0, 0, 0]], (2, 3), ZZ)
+    assert B == ImmutableDDM([[1, 1, 1], [1, 1, 1]], (2, 3), ZZ)
+    assert C == ImmutableDDM([[1, 0], [0, 1]], (2, 2), ZZ)
+
+    D = MR.ones(3, 2)
+    E = B * D
+    assert E == ImmutableDDM([[3, 3], [3, 3]], (2, 2), ZZ)
+
+    F = MR.zeros(2, 4)
+    raises(ValueError, lambda: B * F)

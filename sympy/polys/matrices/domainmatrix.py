@@ -49,7 +49,7 @@ from sympy.polys.densetools import (
 from sympy.polys.factortools import dup_factor_list
 from sympy.polys.polyutils import _sort_factors
 
-from .ddm import DDM
+from .ddm import DDM, ImmutableDDM
 
 from .sdm import SDM
 
@@ -3910,3 +3910,59 @@ def _collect_factors(factors_list):
     factors_list = [(list(f), e) for f, e in factors.items()]
 
     return _sort_factors(factors_list)
+
+
+class MatrixRing:
+    """
+    Represents a ring of square matrices of fixed size over a domain.
+    """
+    def __init__(self, domain: Domain, n: int):
+        self.domain = domain
+        self.n = n
+
+    def zeros(self):
+        zero = self.domain.zero
+        rows = [[zero] * self.n for _ in range(self.n)]
+        return ImmutableDDM(rows, (self.n, self.n), self.domain)
+
+    def ones(self):
+        one = self.domain.one
+        rows = [[one] * self.n for _ in range(self.n)]
+        return ImmutableDDM(rows, (self.n, self.n), self.domain)
+
+    def eye(self):
+        rows = []
+        one = self.domain.one
+        zero = self.domain.zero
+        for i in range(self.n):
+            row = [zero] * self.n
+            row[i] = one
+            rows.append(row)
+        return ImmutableDDM(rows, (self.n, self.n), self.domain)
+
+class MatrixRingoid:
+    """
+    Represents a ringoid of rectangular matrices over a domain.
+    """
+    def __init__(self, domain: Domain):
+        self.domain = domain
+
+    def zeros(self, m: int, n: int):
+        zero = self.domain.zero
+        rows = [[zero] * n for _ in range(m)]
+        return ImmutableDDM(rows, (m, n), self.domain)
+
+    def ones(self, m: int, n: int):
+        one = self.domain.one
+        rows = [[one] * n for _ in range(m)]
+        return ImmutableDDM(rows, (m, n), self.domain)
+
+    def eye(self, n: int):
+        one = self.domain.one
+        zero = self.domain.zero
+        rows = []
+        for i in range(n):
+            row = [zero] * n
+            row[i] = one
+            rows.append(row)
+        return ImmutableDDM(rows, (n, n), self.domain)

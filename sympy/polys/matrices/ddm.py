@@ -73,7 +73,7 @@ from .exceptions import (
     DMShapeError,
 )
 
-from sympy.polys.domains import QQ
+from sympy.polys.domains import QQ, Domain
 
 from .dense import (
         ddm_transpose,
@@ -1069,3 +1069,62 @@ class DDM(list):
 
 from .sdm import SDM
 from .dfm import DFM
+
+
+class ImmutableDDM(tuple):
+    """
+    Immutable Dense Matrix over a domain.
+    """
+
+    def __new__(cls, rows, shape: tuple[int, int], domain: Domain):
+        rows = tuple(tuple(row) for row in rows)
+        self = super().__new__(cls, rows)
+        self.shape = shape
+        self.domain = domain
+        return self
+
+    def __add__(self, other):
+        if not isinstance(other, ImmutableDDM):
+            raise TypeError("Cannot add non-ImmutableDDM instance")
+        if self.shape != other.shape or self.domain != other.domain:
+            raise ValueError("Shape or domain mismatch for addition")
+        new_rows = [tuple(self.domain.add(a, b) for a, b in zip(row_self, row_other))
+                    for row_self, row_other in zip(self, other)]
+        return ImmutableDDM(new_rows, self.shape, self.domain)
+
+    def __mul__(self, other):
+        if isinstance(other, ImmutableDDM):
+            if self.domain != other.domain:
+                raise ValueError("Domain mismatch for multiplication")
+            m, n = self.shape
+            p, q = other.shape
+            if n != p:
+                raise ValueError("Matrix shapes incompatible for multiplication")
+            new_rows = []
+            for i in range(m):
+                row = []
+                for j in range(q):
+                    elem = self.domain.zero
+                    for k in range(n):
+                        elem = self.domain.add(elem, self.domain.mul(self[i][k], other[k][j]))
+                    row.append(elem)
+                new_rows.append(tuple(row))
+            return ImmutableDDM(new_rows, (m, q), self.domain)
+        elif isinstance(other, Domain) and other.domain == self.domain:
+            new_rows = [tuple(self.domain.mul(elem, other) for elem in row)
+                        for row in self]
+            return ImmutableDDM(new_rows, self.shape, self.domain)
+        else:
+            return NotImplemented
+
+    def __sub__(self, other):
+        if not isinstance(other, ImmutableDDM):
+            raise TypeError("Cannot subtract non-ImmutableDDM ")
+        if self.shape != other.shape or self.domain != other.domain:
+            raise ValueError("Shape or domain mismatch for subtraction")
+        new_rows = [tuple(self.domain.sub(a, b) for a, b in zip(row_self, row_other))
+                    for row_self, row_other in zip(self, other)]
+        return ImmutableDDM(new_rows, self.shape, self.domain)
+
+    def __hash__(self):
+        return hash((self.domain, self.shape, super().__hash__()))
