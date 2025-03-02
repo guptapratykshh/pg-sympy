@@ -1069,3 +1069,158 @@ class DDM(list):
 
 from .sdm import SDM
 from .dfm import DFM
+
+
+class ImmutableDDM(tuple):
+    """
+    Immutable Dense Domain Matrix over a domain.
+
+    This class provides an immutable, hashable version of dense domain matrices
+    that can be used as elements in matrix rings and ringoids. Being immutable
+    and hashable allows these matrices to be used as dictionary keys and in sets.
+
+    Parameters:
+    -----------
+    rows : iterable of iterables
+        The rows of the matrix
+    shape : tuple[int, int]
+        The shape (m, n) of the matrix
+    domain : Domain
+        The domain of the matrix elements
+    """
+
+    def __new__(cls, rows, shape: tuple[int, int], domain):
+        if not hasattr(domain, 'zero') or not hasattr(domain, 'one'):
+            raise ValueError("Domain must have 'zero' and 'one' attributes")
+
+        m, n = shape
+        if m <= 0 or n <= 0:
+            raise ValueError("Matrix dimensions must be positive")
+
+        rows = tuple(tuple(domain.convert(elem) for elem in row) for row in rows)
+
+        if len(rows) != m or any(len(row) != n for row in rows):
+            raise ValueError(f"Provided rows don't match the specified shape {shape}")
+
+        self = super().__new__(cls, rows)
+        self.shape = shape
+        self.domain = domain
+        return self
+
+    def __add__(self, other):
+        """Add two matrices element-wise."""
+        if not isinstance(other, ImmutableDDM):
+            raise TypeError("Cannot add non-ImmutableDDM instance")
+        if self.shape != other.shape or self.domain != other.domain:
+            raise ValueError("Shape or domain mismatch for addition")
+        new_rows = [tuple(self.domain.add(a, b) for a, b in zip(row_self, row_other))
+                    for row_self, row_other in zip(self, other)]
+        return ImmutableDDM(new_rows, self.shape, self.domain)
+
+    def __mul__(self, other):
+        """
+        Matrix multiplication or scalar multiplication.
+
+        This method handles both matrix-matrix multiplication and matrix-scalar
+        multiplication based on the type of 'other'.
+        """
+        if isinstance(other, ImmutableDDM):
+            if self.domain != other.domain:
+                raise ValueError("Domain mismatch for multiplication")
+            m, n = self.shape
+            p, q = other.shape
+            if n != p:
+                raise ValueError("Matrix shapes incompatible for multiplication")
+            new_rows = []
+            for i in range(m):
+                row = []
+                for j in range(q):
+                    elem = self.domain.zero
+                    for k in range(n):
+                        elem = self.domain.add(elem, self.domain.mul(self[i][k], other[k][j]))
+                    row.append(elem)
+                new_rows.append(tuple(row))
+            return ImmutableDDM(new_rows, (m, q), self.domain)
+        elif hasattr(other, "domain") and self.domain == other.domain:
+            new_rows = [tuple(self.domain.mul(elem, other) for elem in row)
+                        for row in self]
+            return ImmutableDDM(new_rows, self.shape, self.domain)
+        else:
+            return NotImplemented
+
+    def __sub__(self, other):
+        """Subtract matrix from another element-wise."""
+        if not isinstance(other, ImmutableDDM):
+            raise TypeError("Cannot subtract non-ImmutableDDM instance")
+        if self.shape != other.shape or self.domain != other.domain:
+            raise ValueError("Shape or domain mismatch for subtraction")
+        new_rows = [tuple(self.domain.sub(a, b) for a, b in zip(row_self, row_other))
+                    for row_self, row_other in zip(self, other)]
+        return ImmutableDDM(new_rows, self.shape, self.domain)
+
+    def transpose(self):
+        """Return transpose of the matrix."""
+        m, n = self.shape
+        new_rows = []
+        for j in range(n):
+            new_row = tuple(self[i][j] for i in range(m))
+            new_rows.append(new_row)
+        return ImmutableDDM(new_rows, (n, m), self.domain)
+
+    def determinant(self):
+        """
+        Calculate determinant of a square matrix.
+
+        Only available for square matrices.
+        """
+        m, n = self.shape
+        if m != n:
+            raise ValueError("Determinant is only defined for square matrices")
+
+        if m == 1:
+            return self[0][0]
+        elif m == 2:
+            return self.domain.sub(
+                self.domain.mul(self[0][0], self[1][1]),
+                self.domain.mul(self[0][1], self[1][0])
+            )
+        else:
+            det = self.domain.zero
+            for j in range(n):
+                cofactor = self._minor(0, j)
+                sign = 1 if j % 2 == 0 else -1
+                term = self.domain.mul(self[0][j], self.domain.convert(sign) * cofactor)
+                det = self.domain.add(det, term)
+            return det
+
+    def _minor(self, i, j):
+        """
+        Calculate the (i,j) minor of the matrix (determinant of submatrix).
+
+        Helper method for determinant calculation.
+        """
+        m, n = self.shape
+        submatrix_rows = []
+        for r in range(m):
+            if r != i:
+                row = [self[r][c] for c in range(n) if c != j]
+                submatrix_rows.append(tuple(row))
+
+        submatrix = ImmutableDDM(submatrix_rows, (m-1, n-1), self.domain)
+        return submatrix.determinant()
+
+    def __hash__(self):
+        """Make matrix hashable for use in dictionaries and sets."""
+        return hash((self.domain, self.shape, super().__hash__()))
+
+    def to_sympy_matrix(self):
+        """Convert to Matrix object for integration with sympy ecosystem."""
+        from sympy import Matrix
+        return Matrix(self)
+
+    @classmethod
+    def from_sympy_matrix(cls, sympy_matrix, domain):
+        """Create an ImmutableDDM from matrix object."""
+        rows = [list(row) for row in sympy_matrix.tolist()]
+        shape = (sympy_matrix.rows, sympy_matrix.cols)
+        return cls(rows, shape, domain)

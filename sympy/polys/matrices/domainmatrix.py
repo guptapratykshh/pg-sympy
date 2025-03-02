@@ -49,7 +49,7 @@ from sympy.polys.densetools import (
 from sympy.polys.factortools import dup_factor_list
 from sympy.polys.polyutils import _sort_factors
 
-from .ddm import DDM
+from .ddm import DDM, ImmutableDDM
 
 from .sdm import SDM
 
@@ -3910,3 +3910,272 @@ def _collect_factors(factors_list):
     factors_list = [(list(f), e) for f, e in factors.items()]
 
     return _sort_factors(factors_list)
+
+
+class MatrixRing:
+    """
+    Represents a ring of square matrices of fixed size over a domain.
+
+    A matrix ring consists of square matrices of a fixed size n×n over a specific
+    domain, with the standard matrix addition and multiplication operations.
+    These operations satisfy the ring axioms, making this a proper ring.
+
+    Parameters:
+    -----------
+    domain : Domain
+        The domain of the matrix elements
+    n : int
+        The size of the square matrices in this ring
+    """
+    def __init__(self, domain, n: int):
+        if not hasattr(domain, 'zero') or not hasattr(domain, 'one'):
+            raise ValueError("Domain must have 'zero' and 'one' attributes")
+        if not isinstance(n, int) or n <= 0:
+            raise ValueError("Matrix size must be a positive integer")
+
+        self.domain = domain
+        self.n = n
+
+        self._zero = self.zeros()
+        self._one = self.eye()
+
+    @property
+    def zero(self):
+        """Return the zero element of the ring (zero matrix)."""
+        return self._zero
+
+    @property
+    def one(self):
+        """Return the identity element of the ring (identity matrix)."""
+        return self._one
+
+    def zeros(self):
+        """Create a zero matrix of the appropriate size."""
+        zero = self.domain.zero
+        rows = [[zero] * self.n for _ in range(self.n)]
+        return ImmutableDDM(rows, (self.n, self.n), self.domain)
+
+    def ones(self):
+        """Create a matrix filled with ones of the appropriate size."""
+        one = self.domain.one
+        rows = [[one] * self.n for _ in range(self.n)]
+        return ImmutableDDM(rows, (self.n, self.n), self.domain)
+
+    def eye(self):
+        """Create an identity matrix of the appropriate size."""
+        rows = []
+        one = self.domain.one
+        zero = self.domain.zero
+        for i in range(self.n):
+            row = [zero] * self.n
+            row[i] = one
+            rows.append(row)
+        return ImmutableDDM(rows, (self.n, self.n), self.domain)
+
+    def from_elements(self, elements):
+        """
+        Create a matrix from a list of elements.
+
+        Parameters:
+        -----------
+        elements : list of lists
+            The elements of the matrix arranged in rows
+        """
+        if len(elements) != self.n or any(len(row) != self.n for row in elements):
+            raise ValueError(f"Expected {self.n}x{self.n} elements")
+        return ImmutableDDM(elements, (self.n, self.n), self.domain)
+
+    def block_matrix(self, blocks):
+        """
+        Create a block matrix from a grid of matrices, all from the same MatrixRing.
+
+        Parameters:
+        -----------
+        blocks : list of lists of ImmutableDDM
+            The blocks arranged in rows and columns
+
+        Returns:
+        --------
+        ImmutableDDM : A larger matrix composed of the blocks
+        """
+        if not all(isinstance(block, ImmutableDDM) for row in blocks for block in row):
+            raise TypeError("All blocks must be ImmutableDDM instances")
+
+        block_n = self.n
+        for row in blocks:
+            for block in row:
+                if block.shape != (block_n, block_n):
+                    raise ValueError(f"All blocks must be {block_n}x{block_n}")
+                if block.domain != self.domain:
+                    raise ValueError("All blocks must have the same domain")
+
+        rows_count = len(blocks)
+        cols_count = len(blocks[0]) if blocks else 0
+        final_n = rows_count * block_n
+
+        result_rows = []
+        for i in range(rows_count):
+            for bi in range(block_n):
+                result_row = []
+                for j in range(cols_count):
+                    result_row.extend(blocks[i][j][bi])
+                result_rows.append(result_row)
+
+        return ImmutableDDM(result_rows, (final_n, final_n), self.domain)
+
+
+class MatrixRingoid:
+    """
+    Represents a ringoid of rectangular matrices over a domain.
+
+    A matrix ringoid consists of matrices of arbitrary shapes over a specific
+    domain. Unlike a proper ring, not all elements can be multiplied together
+    (only those with compatible dimensions), hence the term "ringoid".
+
+    Parameters:
+    -----------
+    domain : Domain
+        The domain of the matrix elements
+    """
+    def __init__(self, domain):
+        # Validate domain
+        if not hasattr(domain, 'zero') or not hasattr(domain, 'one'):
+            raise ValueError("Domain must have 'zero' and 'one' attributes")
+
+        self.domain = domain
+
+    def zeros(self, m: int, n: int):
+        """Create a zero matrix of the specified shape."""
+        if m <= 0 or n <= 0:
+            raise ValueError("Matrix dimensions must be positive")
+
+        zero = self.domain.zero
+        rows = [[zero] * n for _ in range(m)]
+        return ImmutableDDM(rows, (m, n), self.domain)
+
+    def ones(self, m: int, n: int):
+        """Create a matrix filled with ones of the specified shape."""
+        if m <= 0 or n <= 0:
+            raise ValueError("Matrix dimensions must be positive")
+
+        one = self.domain.one
+        rows = [[one] * n for _ in range(m)]
+        return ImmutableDDM(rows, (m, n), self.domain)
+
+    def eye(self, n: int):
+        """Create an identity matrix of the specified size."""
+        if n <= 0:
+            raise ValueError("Matrix size must be positive")
+
+        one = self.domain.one
+        zero = self.domain.zero
+        rows = []
+        for i in range(n):
+            row = [zero] * n
+            row[i] = one
+            rows.append(row)
+        return ImmutableDDM(rows, (n, n), self.domain)
+
+    def from_elements(self, elements):
+        """
+        Create a matrix from a list of elements.
+
+        Parameters:
+        -----------
+        elements : list of lists
+            The elements of the matrix arranged in rows
+        """
+        if not elements:
+            raise ValueError("Cannot create empty matrix")
+
+        m = len(elements)
+        n = len(elements[0]) if elements else 0
+
+        if any(len(row) != n for row in elements):
+            raise ValueError("All rows must have the same length")
+
+        return ImmutableDDM(elements, (m, n), self.domain)
+
+    def from_matrix_ring(self, matrix_ring):
+        """
+        Embed a MatrixRing into this MatrixRingoid.
+
+        Parameters:
+        -----------
+        matrix_ring : MatrixRing
+            The matrix ring to embed
+
+        Returns:
+        --------
+        function : A function that converts matrices from the given ring to this ringoid
+        """
+        if self.domain != matrix_ring.domain:
+            raise ValueError("Domain mismatch")
+
+        def convert(matrix):
+            if not isinstance(matrix, ImmutableDDM):
+                raise TypeError("Expected ImmutableDDM")
+            if matrix.domain != self.domain:
+                raise ValueError("Domain mismatch")
+            m, n = matrix.shape
+            if m != matrix_ring.n or n != matrix_ring.n:
+                raise ValueError(f"Expected {matrix_ring.n}×{matrix_ring.n} matrix")
+            return matrix
+
+        return convert
+
+    def block_matrix(self, blocks):
+        """
+        Create a block matrix from a grid of matrices.
+
+        Parameters:
+        -----------
+        blocks : list of lists of ImmutableDDM
+            The blocks arranged in rows and columns. All blocks in the same
+            row must have the same height, and all blocks in the same column
+            must have the same width.
+
+        Returns:
+        --------
+        ImmutableDDM : A larger matrix composed of the blocks
+        """
+        if not blocks:
+            raise ValueError("Empty block matrix")
+
+        if not all(isinstance(block, ImmutableDDM) for row in blocks for block in row):
+            raise TypeError("All blocks must be ImmutableDDM instances")
+
+        for row in blocks:
+            for block in row:
+                if block.domain != self.domain:
+                    raise ValueError("All blocks must have the same domain")
+
+        row_heights = []
+        for row in blocks:
+            if not row:
+                raise ValueError("Empty row in block matrix")
+            row_height = row[0].shape[0]
+            if any(block.shape[0] != row_height for block in row):
+                raise ValueError("Blocks in the same row must have the same height")
+            row_heights.append(row_height)
+
+        col_widths = []
+        for j in range(len(blocks[0])):
+            col_width = blocks[0][j].shape[1]
+            if any(blocks[i][j].shape[1] != col_width for i in range(len(blocks))):
+                raise ValueError("Blocks in the same column must have the same width")
+            col_widths.append(col_width)
+
+        final_m = sum(row_heights)
+        final_n = sum(col_widths)
+
+        result_rows = []
+        row_offset = 0
+        for i, row in enumerate(blocks):
+            for bi in range(row_heights[i]):
+                result_row = []
+                for j, block in enumerate(row):
+                    result_row.extend(block[bi])
+                result_rows.append(result_row)
+
+        return ImmutableDDM(result_rows, (final_m, final_n), self.domain)

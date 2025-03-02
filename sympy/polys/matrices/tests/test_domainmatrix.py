@@ -3,12 +3,12 @@ from sympy.external.gmpy import GROUND_TYPES
 from sympy import Integer, Rational, S, sqrt, Matrix, symbols
 from sympy import FF, ZZ, QQ, QQ_I, EXRAW
 
-from sympy.polys.matrices.domainmatrix import DomainMatrix, DomainScalar, DM
+from sympy.polys.matrices.domainmatrix import DomainMatrix, DomainScalar, DM, MatrixRing, MatrixRingoid
 from sympy.polys.matrices.exceptions import (
     DMBadInputError, DMDomainError, DMShapeError, DMFormatError, DMNotAField,
     DMNonSquareMatrixError, DMNonInvertibleMatrixError,
 )
-from sympy.polys.matrices.ddm import DDM
+from sympy.polys.matrices.ddm import DDM, ImmutableDDM
 from sympy.polys.matrices.sdm import SDM
 
 from sympy.testing.pytest import raises
@@ -1366,3 +1366,97 @@ def test_DomainMatrix_pickling():
     assert pickle.loads(pickle.dumps(dM)) == dM
     dM = DomainMatrix([[ZZ(1), ZZ(2)], [ZZ(3), ZZ(4)]], (2, 2), ZZ)
     assert pickle.loads(pickle.dumps(dM)) == dM
+
+
+def test_immutableddm_advanced():
+
+    A = ImmutableDDM([[1, 2, 3], [4, 5, 6]], (2, 3), ZZ)
+    AT = A.transpose()
+    assert AT.shape == (3, 2)
+    assert AT == ImmutableDDM([[1, 4], [2, 5], [3, 6]], (3, 2), ZZ)
+
+    B = ImmutableDDM([[1, 2], [3, 4]], (2, 2), ZZ)
+    assert B.determinant() == -2
+
+    C = ImmutableDDM([[1, 2, 3], [4, 5, 6], [7, 8, 9]], (3, 3), ZZ)
+    assert C.determinant() == 0
+
+    D = ImmutableDDM([[5]], (1, 1), ZZ)
+    assert D.determinant() == 5
+
+
+def test_matrix_ring_block_matrix():
+
+    MR2 = MatrixRing(ZZ, 2)
+
+    A = MR2.from_elements([[1, 2], [3, 4]])
+    B = MR2.from_elements([[5, 6], [7, 8]])
+    C = MR2.from_elements([[9, 10], [11, 12]])
+    D = MR2.from_elements([[13, 14], [15, 16]])
+
+    blocks = [[A, B], [C, D]]
+    block_matrix = MR2.block_matrix(blocks)
+
+    expected = ImmutableDDM([
+        [1, 2, 5, 6],
+        [3, 4, 7, 8],
+        [9, 10, 13, 14],
+        [11, 12, 15, 16]
+    ], (4, 4), ZZ)
+
+    assert block_matrix == expected
+
+
+def test_matrix_ringoid_block_matrix():
+
+    MRoid = MatrixRingoid(ZZ)
+
+    A = MRoid.from_elements([[1, 2], [3, 4]])
+    B = MRoid.from_elements([[5, 6, 7]])
+    C = MRoid.from_elements([[8], [9]])
+    D = MRoid.from_elements([[10, 11, 12]])
+    blocks = [[A, C], [B, D]]
+
+    try:
+        block_matrix = MRoid.block_matrix(blocks)
+        assert False
+    except ValueError:
+        pass
+
+    A = MRoid.from_elements([[1, 2], [3, 4]])
+    B = MRoid.from_elements([[5], [6]])
+    C = MRoid.from_elements([[7, 8]])
+    D = MRoid.from_elements([[9]])
+
+    blocks = [[A, B], [C, D]]
+    block_matrix = MRoid.block_matrix(blocks)
+
+    expected = ImmutableDDM([
+        [1, 2, 5],
+        [3, 4, 6],
+        [7, 8, 9]
+    ], (3, 3), ZZ)
+
+    assert block_matrix == expected
+
+
+def test_integration_with_matrix_ring_and_ringoid():
+
+    MR2 = MatrixRing(ZZ, 2)
+    MRoid = MatrixRingoid(ZZ)
+
+    A = MR2.from_elements([[1, 2], [3, 4]])
+
+    convert = MRoid.from_matrix_ring(MR2)
+    A_in_ringoid = convert(A)
+
+    B = MRoid.from_elements([[5, 6, 7], [8, 9, 10]])
+
+    C = A * B
+
+    expected = ImmutableDDM([
+        [21, 24, 27],
+        [47, 54, 61]
+    ], (2, 3), ZZ)
+
+    assert C == expected
