@@ -1101,10 +1101,10 @@ class ImmutableDDM(tuple):
 
         if len(rows) != m or any(len(row) != n for row in rows):
             raise ValueError(f"Provided rows don't match the specified shape {shape}")
-
         self = super().__new__(cls, rows)
-        self.shape = shape
-        self.domain = domain
+        object.__setattr__(self, 'shape', shape)
+        object.__setattr__(self, 'domain', domain)
+
         return self
 
     def __add__(self, other):
@@ -1149,7 +1149,7 @@ class ImmutableDDM(tuple):
             return NotImplemented
 
     def __sub__(self, other):
-        """Subtract matrix from another element-wise."""
+        """Subtract a matrix from another element-wise."""
         if not isinstance(other, ImmutableDDM):
             raise TypeError("Cannot subtract non-ImmutableDDM instance")
         if self.shape != other.shape or self.domain != other.domain:
@@ -1159,7 +1159,7 @@ class ImmutableDDM(tuple):
         return ImmutableDDM(new_rows, self.shape, self.domain)
 
     def transpose(self):
-        """Return transpose of the matrix."""
+        """Return the transpose of the matrix."""
         m, n = self.shape
         new_rows = []
         for j in range(n):
@@ -1169,7 +1169,7 @@ class ImmutableDDM(tuple):
 
     def determinant(self):
         """
-        Calculate determinant of a square matrix.
+        Calculate the determinant of a square matrix.
 
         Only available for square matrices.
         """
@@ -1210,17 +1210,17 @@ class ImmutableDDM(tuple):
         return submatrix.determinant()
 
     def __hash__(self):
-        """Make matrix hashable for use in dictionaries and sets."""
+        """Make the matrix hashable for use in dictionaries and sets."""
         return hash((self.domain, self.shape, super().__hash__()))
 
     def to_sympy_matrix(self):
-        """Convert to Matrix object for integration with sympy ecosystem."""
+        """Convert to a SymPy Matrix object for integration with SymPy ecosystem."""
         from sympy import Matrix
         return Matrix(self)
 
     @classmethod
     def from_sympy_matrix(cls, sympy_matrix, domain):
-        """Create an ImmutableDDM from matrix object."""
+        """Create an ImmutableDDM from a SymPy Matrix object."""
         rows = [list(row) for row in sympy_matrix.tolist()]
         shape = (sympy_matrix.rows, sympy_matrix.cols)
         return cls(rows, shape, domain)
