@@ -1448,7 +1448,9 @@ def test_integration_with_matrix_ring_and_ringoid():
     A = MR2.from_elements([[1, 2], [3, 4]])
 
     convert = MRoid.from_matrix_ring(MR2)
-    A_in_ringoid = convert(A)
+    A_ringoid = convert(A)
+
+    assert A_ringoid == A
 
     B = MRoid.from_elements([[5, 6, 7], [8, 9, 10]])
 

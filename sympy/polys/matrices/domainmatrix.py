@@ -4170,7 +4170,6 @@ class MatrixRingoid:
         final_n = sum(col_widths)
 
         result_rows = []
-        row_offset = 0
         for i, row in enumerate(blocks):
             for bi in range(row_heights[i]):
                 result_row = []

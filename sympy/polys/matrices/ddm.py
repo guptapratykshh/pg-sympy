@@ -1089,6 +1089,8 @@ class ImmutableDDM(tuple):
         The domain of the matrix elements
     """
 
+    __slots__ = ['shape', 'domain']
+
     def __new__(cls, rows, shape: tuple[int, int], domain):
         if not hasattr(domain, 'zero') or not hasattr(domain, 'one'):
             raise ValueError("Domain must have 'zero' and 'one' attributes")
