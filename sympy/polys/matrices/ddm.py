@@ -1089,16 +1089,15 @@ class ImmutableDDM(tuple):
         The domain of the matrix elements
     """
 
+    # __slots__ = ['shape', 'domain']
+
     def __new__(cls, rows, shape: tuple[int, int], domain):
         if not hasattr(domain, 'zero') or not hasattr(domain, 'one'):
             raise ValueError("Domain must have 'zero' and 'one' attributes")
-
         m, n = shape
         if m <= 0 or n <= 0:
             raise ValueError("Matrix dimensions must be positive")
-
         rows = tuple(tuple(domain.convert(elem) for elem in row) for row in rows)
-
         if len(rows) != m or any(len(row) != n for row in rows):
             raise ValueError(f"Provided rows don't match the specified shape {shape}")
         self = super().__new__(cls, rows)
