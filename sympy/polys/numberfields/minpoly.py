@@ -11,7 +11,7 @@ from sympy.core.singleton import S
 from sympy.core.symbol import Dummy
 from sympy.core.sympify import sympify
 from sympy.core.traversal import preorder_traversal
-from sympy.functions.elementary.exponential import exp
+from sympy.functions.elementary.exponential import exp, exp_polar
 from sympy.functions.elementary.miscellaneous import sqrt, cbrt
 from sympy.functions.elementary.trigonometric import cos, sin, tan
 from sympy.ntheory.factor_ import divisors
@@ -614,6 +614,12 @@ def _minpoly_compose(ex, x, dom):
         res = _minpoly_tan(ex, x)
     elif ex.__class__ is exp:
         res = _minpoly_exp(ex, x)
+    elif ex.__class__ is exp_polar:
+        if ex.args[0] == 0:
+            return x - 1
+        else:
+            from sympy.functions import exp
+            return _minpoly_compose(exp(ex.args[0]), x, dom)
     elif ex.__class__ is CRootOf:
         res = _minpoly_rootof(ex, x)
     else:
