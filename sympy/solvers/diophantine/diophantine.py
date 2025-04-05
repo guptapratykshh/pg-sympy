@@ -167,7 +167,7 @@ class DiophantineEquationType:
     dimension :
         The number of symbols being solved for
     """
-    name = None  # type: str
+    name: str
 
     def __init__(self, equation, free_symbols=None):
         self.equation = _sympify(equation).expand(force=True)
@@ -3839,7 +3839,7 @@ def power_representation(n, p, k, zeros=False):
                 '''Todd G. Will, "When Is n^2 a Sum of k Squares?", [online].
                 Available: https://www.maa.org/sites/default/files/Will-MMz-201037918.pdf'''
                 return
-            # quick tests since feasibility includes the possiblity of 0
+            # quick tests since feasibility includes the possibility of 0
             if k == 4 and (n in (1, 3, 5, 9, 11, 17, 29, 41) or remove(n, 4)[0] in (2, 6, 14)):
                 # A000534
                 return
